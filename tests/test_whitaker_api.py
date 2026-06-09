@@ -107,7 +107,6 @@ class TestCaching:
         
         # Simulate old cache by changing modification time
         old_time = (datetime.now() - timedelta(days=35)).timestamp()
-        client._cache_dir.stat = MagicMock()
         # Note: In real tests, you'd use os.utime to change the timestamp
 
 
@@ -130,13 +129,24 @@ class TestAPIQueries:
         """Test successful API query."""
         mock_response = MagicMock()
         mock_response.status_code = 200
-        mock_response.text = "<html>rosa - rose</html>"
+        mock_response.json.return_value = {
+            'la': [
+                {
+                    'partOfSpeech': 'Noun',
+                    'definitions': [
+                        {'definition': 'rose (plant or flower)'}
+                    ]
+                }
+            ]
+        }
         mock_get.return_value = mock_response
         
         result = client._query_api("rosa")
         assert result is not None
         assert result['status'] == 'found'
         assert result['word'] == 'rosa'
+        assert 'definition' in result
+        assert 'rose' in result['definition'].lower()
     
     @patch('whitaker_api.requests.get')
     def test_query_api_not_found(self, mock_get, client):
@@ -226,11 +236,11 @@ class TestCacheMaintenance:
         client._write_cache("rosa", {"word": "rosa"})
         client._write_cache("rosae", {"word": "rosae"})
         
-        cache_files = list(client._cache_dir.glob("*.json"))
+        cache_files = list(client.cache_dir.glob("*.json"))
         assert len(cache_files) == 2
         
         # Clear cache
         client.clear_cache()
         
-        cache_files = list(client._cache_dir.glob("*.json"))
+        cache_files = list(client.cache_dir.glob("*.json"))
         assert len(cache_files) == 0
